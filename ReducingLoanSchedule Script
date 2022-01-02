@@ -1,0 +1,38 @@
+CREATE 
+	DEFINER = 'root'@'localhost'
+TRIGGER admin_dsctest.RepaySchTrig
+	AFTER INSERT
+	ON admin_dsctest.loans
+	FOR EACH ROW
+	FOLLOWS LoanDisburse
+BEGIN
+  declare x int ;
+  declare PayAmnt double;
+  declare Principal double; 
+  declare Interest double;
+  declare Balance double;
+  declare PayDate date;
+ if(new.Tenure >  0 AND new.LoanType = 2 )  then
+   set x = 1, PayAmnt = ((new.InterestRate/100) * new.LoanAmount) + (new.LoanAmount/new.Tenure), 
+       Interest = (new.InterestRate/100) * new.LoanAmount, Balance = new.LoanAmount - (new.LoanAmount/new.Tenure), PayDate = DATE_ADD(new.StartDate, INTERVAL 1 MONTH),
+       Principal = new.LoanAmount/new.Tenure;
+   while x <= new.Tenure do
+     insert into repayment_schedule (LoanID,Period,PaymentAmount,Principal,Interest,Outstanding,PaymentDate,Status,CreatedDate)
+     values
+     (new.ApplicationNo,x,PayAmnt,Principal,Interest,Balance,PayDate,0,Current_Date());
+     set x=x+1, PayAmnt = ((new.InterestRate/100) * Balance) + (new.LoanAmount/new.Tenure), 
+       Interest = (new.InterestRate/100) * Balance, Balance = Balance - (new.LoanAmount/new.Tenure), PayDate = DATE_ADD(PayDate, INTERVAL 1 MONTH);
+    end while ;
+      elseif(new.Tenure >  0 AND new.LoanType = 1 )  then
+   set x = 1, PayAmnt = ((new.InterestRate/100) * new.LoanAmount) + (new.LoanAmount/new.Tenure), 
+       Interest = (new.InterestRate/100) * new.LoanAmount, PayDate = DATE_ADD(new.StartDate, INTERVAL 1 MONTH),
+       Principal = new.LoanAmount/new.Tenure;
+   while x <= new.Tenure do
+     insert into repayment_schedule (LoanID,Period,PaymentAmount,Principal,Interest,PaymentDate,Status,CreatedDate)
+     values
+     (new.ApplicationNo,x,PayAmnt,Principal,Interest,PayDate,0,Current_Date());
+     set x=x+1, Interest = (new.InterestRate/100) * new.LoanAmount, PayAmnt = ((new.InterestRate/100) * new.LoanAmount) + (new.LoanAmount/new.Tenure),
+          PayDate = DATE_ADD(PayDate, INTERVAL 1 MONTH);
+    end while ;
+  end if ;
+END
